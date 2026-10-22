@@ -1,0 +1,9 @@
+Satellite Communication Troubleshooting
+
+Communication status can be affected by link availability, ground station connectivity, antenna configuration, or onboard subsystem conditions.
+
+When a communication issue is reported, record the affected link, observation time, recent status changes, and available error messages.
+
+Review ground station status and available link telemetry before narrowing down the cause. If evidence is insufficient, document the uncertainty rather than assigning an unverified root cause.
+
+All recovery actions must follow the mission's approved procedures and authorization requirements.

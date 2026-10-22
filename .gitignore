@@ -23,3 +23,6 @@ chroma_db/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Generated ingestion output
+data/processed/
