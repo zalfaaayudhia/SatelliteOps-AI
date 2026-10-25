@@ -179,3 +179,44 @@ func TestAnalyzeHandlesUnavailablePythonService(t *testing.T) {
 		)
 	}
 }
+
+func TestAnalyzeForwardsPythonErrorResponse(t *testing.T) {
+	mockPython := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(
+				`{"detail":"Invalid query"}`,
+			))
+		},
+	))
+	defer mockPython.Close()
+
+	originalURL := pythonAnswerURL
+	pythonAnswerURL = mockPython.URL + "/answer"
+	defer func() {
+		pythonAnswerURL = originalURL
+	}()
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/analyze",
+		strings.NewReader(`{"message":"Explain safe mode"}`),
+	)
+	rec := httptest.NewRecorder()
+
+	analyzeHandler(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status 422, got %d", rec.Code)
+	}
+
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("expected application/json, got %q", got)
+	}
+
+	if !strings.Contains(rec.Body.String(), "Invalid query") {
+		t.Errorf("expected Python error body to be forwarded, got %s",
+			rec.Body.String())
+	}
+}
