@@ -143,9 +143,36 @@ func TestAnalyzeForwardsRequestAndResponse(t *testing.T) {
 		)
 	}
 
-	if !strings.Contains(rec.Body.String(), `"answer"`) ||
-		!strings.Contains(rec.Body.String(), "[S1]") {
-		t.Errorf("expected forwarded answer and citation, got: %s", rec.Body.String())
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("invalid gateway response JSON: %v", err)
+	}
+
+	answer, ok := response["answer"].(string)
+	if !ok {
+		t.Fatalf("expected answer to be a string, got: %T", response["answer"])
+	}
+
+	if !strings.Contains(answer, "[S1]") {
+		t.Errorf("expected answer citation [S1], got: %s", answer)
+	}
+
+	sources, ok := response["sources"].([]any)
+	if !ok {
+		t.Fatalf("expected sources to be an array, got: %T", response["sources"])
+	}
+
+	if len(sources) != 1 {
+		t.Fatalf("expected 1 source, got %d", len(sources))
+	}
+
+	source, ok := sources[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected source to be an object, got: %T", sources[0])
+	}
+
+	if source["id"] != "S1" {
+		t.Errorf("expected source ID S1, got: %v", source["id"])
 	}
 }
 
