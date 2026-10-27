@@ -56,11 +56,29 @@ def test_answer_returns_grounded_response(monkeypatch):
     assert response.status_code == 200
 
     data = response.json()
+    assert set(data.keys()) == {
+        "query",
+        "answer",
+        "sources",
+        "source_count",
+    }
+
+    assert isinstance(data["query"], str)
+    assert isinstance(data["answer"], str)
+    assert isinstance(data["sources"], list)
+    assert isinstance(data["source_count"], int)
+
+    assert set(data["sources"][0].keys()) == {
+        "id",
+        "source",
+        "chunk_index",
+    }
     assert data["query"] == "What is satellite safe mode?"
     assert "[S1]" in data["answer"]
     assert data["source_count"] == 1
     assert data["sources"][0]["id"] == "S1"
     assert data["sources"][0]["source"] == "satellite_health.md"
+    assert data["sources"][0]["chunk_index"] == 0
 
 
 def test_answer_rejects_empty_query():
