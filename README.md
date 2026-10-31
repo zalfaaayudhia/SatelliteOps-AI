@@ -1,64 +1,145 @@
 # SatelliteOps AI
 
-**An AI-powered satellite operations assistant built with Go, Python, Retrieval-Augmented Generation (RAG), and a local LLM.**
+**An AI-powered satellite operations assistant built with Go, Python, Retrieval-Augmented Generation (RAG), ChromaDB, and a locally hosted Large Language Model.**
 
-SatelliteOps AI answers satellite operations questions by retrieving relevant information from a document knowledge base and generating responses grounded in that context.
+SatelliteOps AI is a document-grounded AI assistant designed to help satellite operations teams retrieve operational knowledge and investigate satellite-related issues through natural-language questions.
 
-The project demonstrates a multi-service AI architecture: a Go API gateway handles client requests, while a Python service manages semantic retrieval and LLM-powered answer generation.
+The system combines a Go API gateway with a Python-based RAG pipeline to retrieve relevant information from a satellite operations knowledge base and generate contextual answers using a locally hosted LLM.
 
-## Architecture
+Unlike a conventional chatbot, SatelliteOps AI uses document retrieval to provide answers supported by source references. When the available documents do not contain the requested information, the system is designed to acknowledge the knowledge gap rather than fabricate an answer.
+
+---
+
+## Table of Contents
+
+1. [Project Overview](#project-overview)
+2. [Key Features](#key-features)
+3. [System Architecture](#system-architecture)
+4. [Technology Stack](#technology-stack)
+5. [Project Structure](#project-structure)
+6. [Prerequisites](#prerequisites)
+7. [Installation and Setup](#installation-and-setup)
+8. [Document Ingestion and Vector Indexing](#document-ingestion-and-vector-indexing)
+9. [Running the Application](#running-the-application)
+10. [API Documentation](#api-documentation)
+11. [Example Usage](#example-usage)
+12. [Testing and Validation](#testing-and-validation)
+13. [Engineering Decisions](#engineering-decisions)
+14. [Limitations](#limitations)
+15. [Future Improvements](#future-improvements)
+
+---
+
+## Project Overview
+
+Satellite operations involve monitoring satellite health, investigating anomalies, troubleshooting communication issues, and following established operational procedures.
+
+Relevant operational information is often distributed across multiple technical documents. Finding the right information quickly can be challenging, especially when operators need to investigate an issue.
+
+SatelliteOps AI addresses this problem through a Retrieval-Augmented Generation (RAG) architecture.
+
+The application allows users to submit natural-language questions and receive answers generated from relevant documents in the knowledge base.
+
+The system follows this workflow:
+
+1. A user submits a question through the Go API gateway.
+2. The Go gateway validates the request and forwards it to the Python service.
+3. The Python service performs semantic retrieval using ChromaDB.
+4. Relevant document chunks are provided as context to the local LLM.
+5. The LLM generates an answer based on the retrieved information.
+6. The Python service returns the answer with source references.
+7. The Go gateway forwards the response to the client.
+
+The project demonstrates the integration of backend engineering, AI application development, semantic search, and local LLM inference.
+
+## Key Features
+
+- **Retrieval-Augmented Generation (RAG):** Generates answers using information retrieved from a document knowledge base.
+- **Semantic Search:** Uses ChromaDB to retrieve relevant document chunks based on query meaning.
+- **Source Attribution:** Returns document references and metadata alongside generated answers.
+- **Grounded Answer Generation:** Uses retrieved context to guide LLM responses.
+- **Knowledge Gap Recognition:** Handles questions when the available documents do not contain the requested information.
+- **Multi-Service Architecture:** Separates API gateway responsibilities from AI processing.
+- **Local LLM Inference:** Uses Ollama and Qwen 2.5 3B without requiring a paid LLM API for the configured workflow.
+- **API Validation:** Handles malformed requests, empty messages, and unexpected JSON fields.
+- **Reliability Handling:** Includes upstream timeout handling, response size limits, and service availability handling.
+- **Automated Testing:** Includes Python and Go tests for important application behavior.
+
+## System Architecture
+
+SatelliteOps AI uses a multi-service architecture.
 
 ```mermaid
 flowchart TD
-    A[Client] --> B[Go API Gateway :8080]
+    A[Client / User] --> B[Go API Gateway :8080]
+
     B --> C[Python FastAPI :8000]
-    C --> D[ChromaDB Vector Store]
-    D --> E[Retrieved Document Chunks]
-    E --> F[Ollama Local LLM]
-    F --> C
-    C --> B
+
+    C --> D[Query Processing]
+
+    D --> E[ChromaDB Vector Store]
+
+    E --> F[Retrieved Document Chunks]
+
+    F --> G[Ollama Local LLM]
+
+    G --> H[Qwen 2.5 3B]
+
+    H --> C
+
+    C --> I[Answer + Source Metadata]
+
+    I --> B
+
     B --> A
 ```
 
-### Request flow
+### Component Responsibilities
 
-1. A client submits a question to the Go gateway.
-2. The gateway validates the request and forwards the question to the Python API.
-3. The Python service retrieves relevant document chunks from ChromaDB.
-4. The retrieved context is passed to a local language model through Ollama.
-5. The Python service returns an answer and source metadata.
-6. The Go gateway forwards the response to the client.
+| Component | Responsibility |
+|---|---|
+| Go API Gateway | Request validation, HTTP handling, timeout management, and response forwarding |
+| Python FastAPI | AI service, retrieval orchestration, and answer generation |
+| ChromaDB | Persistent vector storage and semantic retrieval |
+| Ollama | Local LLM inference |
+| Qwen 2.5 3B | Context-based answer generation |
+| Document Knowledge Base | Stores satellite operations reference documents |
+
+### Request Flow
+
+1. The client sends a question to `POST /analyze`.
+2. The Go gateway validates the incoming request.
+3. The gateway converts the incoming `message` field into the `query` field expected by Python.
+4. The Python service searches ChromaDB for relevant document chunks.
+5. Retrieved chunks are passed to the LLM as supporting context.
+6. The LLM generates an answer using the retrieved context.
+7. The Python service returns the answer and source metadata.
+8. The Go gateway forwards the response to the client.
 
 ## Technology Stack
 
-- **Go:** HTTP gateway, request validation, timeout handling, and upstream response forwarding.
-- **Python:** AI service and document retrieval pipeline.
-- **FastAPI:** Python REST API and interactive API documentation.
-- **ChromaDB:** Persistent vector storage and semantic retrieval.
-- **Ollama:** Local LLM inference.
-- **Qwen 2.5 3B:** Local language model used for answer generation.
-- **pytest:** Python automated testing.
-- **Go testing package:** Gateway and API contract tests.
-
-## Features
-
-- Semantic search over satellite operations documents.
-- Context-grounded LLM answers with source references.
-- Separate Go gateway and Python AI service.
-- Request validation and structured error responses.
-- Request and response size limits in the Go gateway.
-- Upstream timeout and unavailable-service handling.
-- Automated tests for important API behavior.
-- Local model inference without requiring a paid LLM API for the configured workflow.
+| Technology | Purpose |
+|---|---|
+| Go | HTTP gateway and backend request handling |
+| Python | AI processing and RAG implementation |
+| FastAPI | Python REST API |
+| ChromaDB | Vector database and semantic retrieval |
+| Ollama | Local LLM runtime |
+| Qwen 2.5 3B | Language model for answer generation |
+| OpenAI Python SDK | Client interface for the OpenAI-compatible local Ollama endpoint |
+| pytest | Python automated testing |
+| Go testing package | Go unit and API behavior testing |
 
 ## Project Structure
 
 ```text
 SatelliteOps-AI/
+│
 ├── go-service/
 │   ├── main.go
 │   ├── main_test.go
 │   └── go.mod
+│
 ├── python-service/
 │   ├── app/
 │   │   ├── __init__.py
@@ -66,28 +147,47 @@ SatelliteOps-AI/
 │   │   ├── ingestion.py
 │   │   ├── vector_store.py
 │   │   └── llm.py
+│   │
 │   ├── tests/
-│   └── requirements.txt
+│   │   ├── test_answer_api.py
+│   │   ├── test_ingestion.py
+│   │   └── test_retrieval_api.py
+│   │
+│   ├── requirements.txt
+│   └── requirements-dev.txt
+│
 ├── data/
 │   ├── documents/
+│   │   ├── satellite_health.md
+│   │   ├── incident_response.md
+│   │   └── communication_systems.txt
+│   │
 │   └── processed/
+│       └── chunks.jsonl
+│
 ├── chroma_db/
+│
 ├── .env.example
 ├── .gitignore
 └── README.md
 ```
 
-Generated data, the local virtual environment, and the persistent vector database may be excluded from Git according to the repository's `.gitignore`.
+**Note:** `.venv/`, generated processing files, and the persistent ChromaDB directory are local development artifacts and may be excluded from Git.
 
 ## Prerequisites
 
-Install the following before running the project:
+Install the following software:
 
 - Git
 - Go
-- Python 3.11 or a compatible version supported by the installed dependencies
+- Python 3.12
 - Ollama
-- The configured Ollama model: `qwen2.5:3b`
+
+The project uses the following local model:
+
+```text
+qwen2.5:3b
+```
 
 Check your installations:
 
@@ -98,80 +198,219 @@ git --version
 ollama --version
 ```
 
-Pull the model if it is not already installed:
+Download the model if it is not already installed:
 
 ```powershell
 ollama pull qwen2.5:3b
 ```
 
-Ensure Ollama is running and the model is available before testing answer generation.
+Ensure Ollama is running before starting answer generation.
 
-## Local Setup
+## Installation and Setup
 
-Run the commands from the repository root in PowerShell.
+The following instructions use Windows PowerShell.
 
-### 1. Set up the Python service
+### 1. Clone the Repository
+
+```powershell
+git clone <YOUR_GITHUB_REPOSITORY_URL>
+
+cd SatelliteOps-AI
+```
+
+### 2. Set Up the Python Environment
+
+Navigate to the Python service:
 
 ```powershell
 cd python-service
+```
 
+Create a virtual environment:
+
+```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+```
 
+Activate it:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Upgrade pip:
+
+```powershell
 python -m pip install --upgrade pip
+```
+
+Install project dependencies:
+
+```powershell
 pip install -r requirements.txt
 ```
 
-If PowerShell blocks virtual-environment activation, you can invoke the environment's Python directly:
+Install development dependencies:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
-### 2. Configure environment variables
+Return to the project root:
 
-Review `.env.example` and create or update your local `.env` file if the application requires environment variables.
+```powershell
+cd ..
+```
 
-Do not commit API keys, credentials, or other secrets. The current local Ollama configuration uses an OpenAI-compatible local endpoint and does not require a paid OpenAI API key.
+### 3. Configure Environment Variables
 
-### 3. Prepare the document knowledge base
+Review `.env.example` and configure the local environment according to the application settings.
 
-Ensure the source documents exist under `data/documents/` and follow the project's ingestion workflow to create the processed chunks and populate the vector store.
+The current Ollama configuration uses a local OpenAI-compatible endpoint:
 
-Run the ingestion command defined by your current implementation before querying an empty or newly created database.
+```text
+http://localhost:11434/v1
+```
 
-### 4. Start the Python API
+The configured model is:
 
-From `python-service/`:
+```text
+qwen2.5:3b
+```
+
+The local Ollama workflow does not require a paid OpenAI API key.
+
+Do not commit credentials, API keys, or other sensitive information.
+
+## Document Ingestion and Vector Indexing
+
+SatelliteOps AI uses a document knowledge base containing satellite operations information.
+
+The current sample documents include:
+
+- `satellite_health.md`
+- `incident_response.md`
+- `communication_systems.txt`
+
+The ingestion process converts source documents into smaller text chunks for semantic retrieval.
+
+The processed chunks are stored in:
+
+```text
+data/processed/chunks.jsonl
+```
+
+### Populate the ChromaDB Vector Store
+
+From the project root, activate the Python environment if it is not already active:
+
+```powershell
+.\python-service\.venv\Scripts\Activate.ps1
+```
+
+Run the vector indexing script:
+
+```powershell
+python .\python-service\app\vector_store.py
+```
+
+The script uses the processed chunks to populate the persistent ChromaDB database.
+
+The configured collection is:
+
+```text
+satellite_operations
+```
+
+The persistent database directory is:
+
+```text
+chroma_db/
+```
+
+**Important:** The processed `chunks.jsonl` file must exist before running the indexing script. If starting with new source documents, execute the project's document ingestion workflow first.
+
+## Running the Application
+
+SatelliteOps AI requires three running components:
+
+1. Ollama
+2. Python FastAPI service
+3. Go API gateway
+
+Use separate PowerShell terminals to run the services simultaneously.
+
+### Terminal 1: Ollama
+
+Ensure Ollama is running and the model is available:
+
+```powershell
+ollama list
+```
+
+Verify that `qwen2.5:3b` appears in the model list.
+
+### Terminal 2: Python FastAPI
+
+Navigate to the Python service:
+
+```powershell
+cd python-service
+```
+
+Activate the virtual environment:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Start the API:
 
 ```powershell
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-The API should be available at:
+The Python API will be available at:
 
-- Health: `http://localhost:8000/health`
-- Interactive API documentation: `http://localhost:8000/docs`
+```text
+http://localhost:8000
+```
 
-### 5. Start the Go gateway
+Interactive API documentation:
 
-Open a second PowerShell terminal:
+```text
+http://localhost:8000/docs
+```
+
+### Terminal 3: Go API Gateway
+
+From the repository root:
 
 ```powershell
-cd D:\.DOCS\Portfolio\SatelliteOps-AI\go-service
+cd go-service
+```
 
+Start the gateway:
+
+```powershell
 go run .
 ```
 
-The gateway should be available at `http://localhost:8080`.
+The Go gateway will be available at:
 
-## API Reference
+```text
+http://localhost:8080
+```
 
-### Go Gateway
+## API Documentation
 
-#### `GET /health`
+### Go API Gateway
 
-Checks gateway availability.
+The Go gateway exposes the following endpoints.
+
+#### GET `/health`
+
+Checks whether the Go gateway is running.
 
 Example response:
 
@@ -182,30 +421,30 @@ Example response:
 }
 ```
 
-#### `POST /analyze`
+#### POST `/analyze`
 
-Accepts a question and forwards it to the Python `/answer` endpoint.
+Accepts a natural-language question and forwards it to the Python AI service.
 
 Request:
 
 ```json
 {
-  "message": "How should a satellite communication failure be handled?"
+  "message": "What should operators do when a satellite enters safe mode?"
 }
 ```
 
-The gateway converts `message` into the `query` field expected by the Python service.
+The gateway converts `message` into the `query` field expected by Python.
 
-A successful response contains the Python answer structure:
+A successful response follows this structure:
 
 ```json
 {
-  "query": "How should a satellite communication failure be handled?",
-  "answer": "Example answer based on retrieved context.",
+  "query": "What should operators do when a satellite enters safe mode?",
+  "answer": "Generated answer based on retrieved documents. [S1]",
   "sources": [
     {
-      "id": "example-source-id",
-      "source": "incident_response.md",
+      "id": "S1",
+      "source": "satellite_health.md",
       "chunk_index": 0
     }
   ],
@@ -213,11 +452,11 @@ A successful response contains the Python answer structure:
 }
 ```
 
-The values above are illustrative, not actual model output.
+The example values are illustrative.
 
 ### Python AI Service
 
-#### `GET /health`
+#### GET `/health`
 
 Checks Python service availability.
 
@@ -230,15 +469,15 @@ Example response:
 }
 ```
 
-#### `POST /retrieve`
+#### POST `/retrieve`
 
-Retrieves relevant document chunks without generating an LLM answer.
+Retrieves relevant document chunks without generating an LLM response.
 
 Request:
 
 ```json
 {
-  "query": "How should a satellite communication failure be handled?",
+  "query": "satellite communication failure",
   "top_k": 3
 }
 ```
@@ -247,7 +486,7 @@ Response structure:
 
 ```json
 {
-  "query": "How should a satellite communication failure be handled?",
+  "query": "satellite communication failure",
   "results": [
     {
       "text": "Example retrieved document text.",
@@ -260,15 +499,15 @@ Response structure:
 }
 ```
 
-#### `POST /answer`
+#### POST `/answer`
 
-Retrieves supporting chunks and generates an answer using the configured local LLM.
+Retrieves supporting documents and generates a contextual answer using the configured local LLM.
 
 Request:
 
 ```json
 {
-  "query": "How should a satellite communication failure be handled?",
+  "query": "What should operators do when a satellite enters safe mode?",
   "top_k": 3
 }
 ```
@@ -279,109 +518,235 @@ Response fields:
 |---|---|
 | `query` | Original question |
 | `answer` | Generated answer |
-| `sources` | Supporting source references |
+| `sources` | Supporting document references |
 | `source_count` | Number of returned source references |
 
-For interactive request and response schemas, open `http://localhost:8000/docs` while the Python service is running.
+For complete interactive request and response schemas, visit:
 
-## Example Requests
+`http://localhost:8000/docs`
 
-Run these commands in PowerShell while both services are running.
+## Example Usage
 
-### Check service health
+### 1. Check Service Health
+
+Check the Go gateway:
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/health
+```
+
+Check the Python service:
+
+```powershell
 Invoke-RestMethod http://localhost:8000/health
 ```
 
-### Ask a question through the Go gateway
+### 2. Ask a Question Through the Go Gateway
 
 ```powershell
 $body = @{
-    message = "How should a satellite communication failure be handled?"
+    message = "What should operators do when a satellite enters safe mode?"
 } | ConvertTo-Json
 
-Invoke-RestMethod `
-    -Uri http://localhost:8080/analyze `
-    -Method Post `
+$response = Invoke-RestMethod `
+    -Uri "http://localhost:8080/analyze" `
+    -Method POST `
     -ContentType "application/json" `
     -Body $body
+
+$response | ConvertTo-Json -Depth 10
 ```
 
-### Retrieve documents directly
+### 3. Example: Grounded Answer Generation
 
-```powershell
-$body = @{
-    query = "satellite communication failure"
-    top_k = 3
-} | ConvertTo-Json
+Question:
 
-Invoke-RestMethod `
-    -Uri http://localhost:8000/retrieve `
-    -Method Post `
-    -ContentType "application/json" `
-    -Body $body
+```text
+What should operators do when a satellite enters safe mode?
 ```
 
-## Validation and Error Handling
+The system retrieves relevant information from the document knowledge base and generates an answer with references.
 
-The Go gateway validates incoming JSON, rejects unknown fields, requires a non-empty message, and limits request bodies to 1 MB.
+Example answer:
 
-It also applies a 125-second upstream timeout and limits the response body read from Python to 2 MB.
+```text
+Operators should follow these steps when a satellite enters safe mode:
 
-| HTTP status | Meaning |
-|---|---|
-| `200` | Request succeeded |
-| `400` | Invalid JSON or invalid gateway request |
-| `413` | Gateway request body exceeds 1 MB |
-| `422` | Python request validation or processing error |
-| `500` | Internal Python error or gateway preparation error |
-| `502` | Python service unavailable or answer generation failure |
-| `503` | Python service configuration or retrieval availability error |
-| `504` | Python request timed out |
-
-The Go gateway forwards the Python response status and body, including error responses, when it receives a valid upstream HTTP response.
-
-## Testing
-
-### Python tests
-
-```powershell
-cd D:\.DOCS\Portfolio\SatelliteOps-AI\python-service
-python -m pytest -v
+1. Identify the affected subsystem.
+2. Validate the observation.
+3. Check for related issues.
+4. Record findings and unresolved questions.
+5. Escalate according to the approved mission procedure.
 ```
 
-### Go tests
+The generated response includes references such as `[S1]` and `[S2]`, along with source metadata.
+
+### 4. Example: Handling Unavailable Information
+
+Question:
+
+```text
+What is the exact launch date and orbital altitude of this satellite?
+```
+
+Observed system behavior:
+
+```text
+The provided excerpts do not contain any information
+about the launch date or orbital altitude of the satellite.
+
+Therefore, I cannot answer this question based on
+the given information.
+```
+
+The system identifies that the requested information is missing from the retrieved documents instead of generating unsupported values.
+
+## Testing and Validation
+
+SatelliteOps AI includes automated tests for both the Python AI service and the Go gateway.
+
+### Python Tests
+
+Run from the `python-service` directory with the virtual environment activated:
 
 ```powershell
-cd D:\.DOCS\Portfolio\SatelliteOps-AI\go-service
+python -m pytest tests -v
+```
+
+Verified result:
+
+```text
+12 passed
+```
+
+The Python tests cover:
+
+- Answer generation API behavior.
+- Request validation.
+- Retrieval failure handling.
+- Generation failure handling.
+- Document chunking.
+- Ingestion behavior.
+- Retrieval API behavior.
+- Health endpoint behavior.
+- Response structure and source metadata.
+
+### Go Tests
+
+Run from the `go-service` directory:
+
+```powershell
 go test ./... -v
 ```
 
-Additional Go checks:
+Additional checks:
 
 ```powershell
-go build .
 go vet ./...
+go build .
 ```
 
-## Current Scope and Limitations
+Verified results:
 
-- Answer quality depends on the source documents, retrieval relevance, and local model capabilities.
-- Local LLM inference performance depends on available system resources.
-- The current architecture provides document retrieval and grounded answer generation; autonomous agentic workflows are not documented as implemented features.
-- This project is a portfolio prototype, not a certified satellite control system.
+- All 5 Go test functions passed, including 4 invalid-request subtests.
+- `go vet` completed successfully.
+- `go build` completed successfully.
+
+### End-to-End Validation
+
+The complete application was tested using the following pipeline:
+
+```text
+Client
+  |
+  v
+Go Gateway
+  |
+  v
+Python FastAPI
+  |
+  v
+ChromaDB Retrieval
+  |
+  v
+Ollama / Qwen 2.5 3B
+  |
+  v
+Generated Answer + Sources
+```
+
+Two end-to-end scenarios were successfully verified:
+
+| Scenario | Expected Behavior | Result |
+|---|---|---|
+| Grounded question | Generate a contextual answer with source references | Passed |
+| Unanswerable question | Acknowledge missing information without inventing facts | Passed |
+
+These results demonstrate that the core application pipeline works across both services and the local LLM.
+
+## Engineering Decisions
+
+### 1. Separating the Gateway and AI Service
+
+Go and Python have different responsibilities in the system.
+
+Go handles HTTP gateway responsibilities, including request validation, timeout management, and upstream communication.
+
+Python handles AI-specific operations, including document retrieval, RAG orchestration, and LLM integration.
+
+This separation keeps the backend gateway independent from the AI implementation.
+
+### 2. Using a Local LLM
+
+The project initially explored a hosted LLM API but encountered API quota limitations.
+
+Ollama was selected to support local inference without requiring paid API usage for the configured workflow.
+
+The selected model is Qwen 2.5 3B, which provides a practical balance between model capability and local hardware requirements.
+
+### 3. Using ChromaDB
+
+ChromaDB provides persistent vector storage and semantic retrieval.
+
+Instead of passing the entire document collection to the LLM, the system retrieves relevant chunks and uses them as context.
+
+This reduces unnecessary context and helps ground generated responses in the available knowledge base.
+
+### 4. Returning Source Metadata
+
+The Python service returns source references alongside generated answers.
+
+This allows clients to identify which documents contributed to the generated response and provides a foundation for future answer verification and traceability.
+
+## Limitations
+
+- Answer quality depends on the quality and completeness of the source documents.
+- Retrieval relevance depends on document chunking and semantic search performance.
+- Local LLM inference performance depends on available hardware resources.
+- A generated citation does not independently guarantee that every statement is fully supported by its referenced document.
+- The current implementation focuses on document retrieval and grounded answer generation rather than autonomous satellite operations.
+- The project is a portfolio prototype and is not a certified satellite control or mission-critical operational system.
 
 ## Future Improvements
 
-- Add a frontend for interactive question answering.
-- Add document ingestion and re-indexing controls.
-- Evaluate retrieval quality and answer grounding.
-- Add observability, structured logs, and performance metrics.
-- Introduce authentication and rate limiting before exposing the API publicly.
-- Explore agentic workflows with clearly defined tools and safety boundaries.
+Potential improvements include:
+
+- Developing a web-based frontend for interactive question answering.
+- Adding document upload, ingestion, and re-indexing controls.
+- Implementing retrieval quality evaluation and answer-grounding metrics.
+- Adding structured logging, observability, and performance monitoring.
+- Introducing authentication and rate limiting before public deployment.
+- Adding conversation history and contextual follow-up questions.
+- Exploring agentic workflows with clearly defined tools and safety boundaries.
+- Deploying the application using Docker and a production-ready service architecture.
 
 ## License
 
-Choose and add a license before distributing or accepting external contributions.
+No license has been selected yet.
+
+Choose and add an appropriate open-source license before distributing the project or accepting external contributions.
+
+---
+
+**SatelliteOps AI**  
+*An AI-powered satellite operations assistant demonstrating backend engineering, Retrieval-Augmented Generation, semantic search, and local LLM integration.*
